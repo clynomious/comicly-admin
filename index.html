@@ -82,6 +82,12 @@
       <label>Judul<input id="c-title" maxlength="80" placeholder="Judul notifikasi" /></label>
       <label>Pesan<textarea id="c-body" rows="3" maxlength="500" placeholder="Isi notifikasi"></textarea></label>
       <label>Target<select id="c-target"><option value="all">Semua device aktif</option></select></label>
+      <label>Device tertentu (opsional — kalau diisi, ini menang atas Target)
+        <input id="c-device" maxlength="64" placeholder="device id dari tabel perangkat (untuk tes ke HP sendiri)" />
+      </label>
+      <label>Gambar notifikasi (opsional)
+        <input id="c-image" maxlength="500" placeholder="https://… — tampil sebagai gambar besar di notifikasi Android" />
+      </label>
       <label>Jenis notifikasi
         <select id="c-type">
           <option value="info">Info / pengumuman (buka Setelan)</option>
@@ -272,7 +278,18 @@ function wireEvents() {
     const body = $('c-body').value.trim();
     if (!title || !body) { setStatus($('send-status'), 'Judul dan pesan wajib diisi.', 'err'); return; }
     const value = $('c-target').value;
-    const target = value === 'all' ? 'all' : { segment_id: value };
+    // Device spesifik (tes ke satu HP) menang atas pilihan Target.
+    const deviceId = ($('c-device')?.value ?? '').trim();
+    const target = deviceId
+      ? { device_id: deviceId }
+      : value === 'all'
+        ? 'all'
+        : { segment_id: value };
+    const image = ($('c-image')?.value ?? '').trim();
+    if (image && !/^https:\/\/\S{4,}$/.test(image)) {
+      setStatus($('send-status'), 'URL gambar harus diawali https://', 'err');
+      return;
+    }
 
     // Payload menentukan tujuan ketukan notifikasi di aplikasi.
     const type = $('c-type') ? $('c-type').value : 'info';
@@ -297,7 +314,13 @@ function wireEvents() {
     button.disabled = true;
     setStatus($('send-status'), 'Mengirim…');
     try {
-      const result = await invokeFn('send-push', { title, body, target, data });
+      const result = await invokeFn('send-push', {
+        title,
+        body,
+        target,
+        data,
+        ...(image ? { image } : {}),
+      });
       setStatus($('send-status'), `Terkirim ${result.sent} · gagal ${result.failed} · total ${result.total}.`, 'ok');
       await loadDashboard();
     } catch (e) {
