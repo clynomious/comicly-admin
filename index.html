@@ -1,0 +1,352 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Comicly — Dashboard Admin</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #0a0c12; color: #e6e8ee; font: 14px/1.5 system-ui, -apple-system, 'Segoe UI', sans-serif; }
+  header { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 20px; background: rgba(10, 12, 18, .92); border-bottom: 1px solid #1d2230; }
+  h1 { margin: 0; font-size: 15px; }
+  h2 { margin: 0 0 12px; font-size: 12px; letter-spacing: .05em; text-transform: uppercase; color: #9aa4b8; }
+  main { max-width: 880px; margin: 0 auto; padding: 20px; display: grid; gap: 16px; }
+  .card { background: #111520; border: 1px solid #1d2230; border-radius: 10px; padding: 16px; }
+  label { display: block; margin-bottom: 10px; color: #9aa4b8; font-size: 12px; }
+  input, textarea, select { width: 100%; margin-top: 4px; padding: 8px 10px; background: #0a0c12; color: #e6e8ee; border: 1px solid #2a3145; border-radius: 6px; font: inherit; }
+  input:focus, textarea:focus, select:focus { outline: 1px solid #00aaff; border-color: #00aaff; }
+  button { padding: 9px 14px; background: #00aaff; color: #04121c; border: 0; border-radius: 6px; font: inherit; font-weight: 600; cursor: pointer; }
+  button.ghost { background: transparent; color: #9aa4b8; border: 1px solid #2a3145; font-weight: 400; }
+  button:disabled { opacity: .5; cursor: default; }
+  .muted { color: #77809a; font-size: 12px; }
+  .err { color: #ff7b7b; font-size: 12px; }
+  .ok { color: #4cd97b; font-size: 12px; }
+  .hidden { display: none !important; }
+  .row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .stack { display: grid; gap: 16px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { padding: 8px 6px; text-align: left; vertical-align: top; border-bottom: 1px solid #1d2230; }
+  th { color: #77809a; font-size: 12px; font-weight: 500; }
+  .notif { margin: 4px 0 14px; padding: 12px 14px; background: #1b2130; border: 1px solid #2a3145; border-radius: 14px; }
+  .notif-head { display: flex; align-items: center; gap: 8px; font-size: 11px; color: #9aa4b8; }
+  .notif-icon { display: grid; place-items: center; width: 20px; height: 20px; border-radius: 5px; background: #00aaff; color: #04121c; font-size: 12px; font-weight: 700; }
+  .notif b { display: block; margin-top: 6px; font-size: 13px; }
+  .notif p { margin: 2px 0 0; color: #c6cbda; white-space: pre-wrap; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Comicly — Admin</h1>
+  <span id="who" class="muted"></span>
+</header>
+
+<main>
+  <section id="config-card" class="card hidden">
+    <h2>Koneksi Supabase</h2>
+    <p class="muted">Hanya disimpan di localStorage browser ini. Pakai URL + anon key — service-role key TIDAK boleh dipakai di browser (RLS yang menahan akses).</p>
+    <div class="grid2">
+      <label>Project URL<input id="cfg-url" placeholder="https://xxxx.supabase.co" /></label>
+      <label>Anon key<input id="cfg-anon" placeholder="eyJ…" /></label>
+    </div>
+    <div class="row">
+      <span id="cfg-status" class="muted"></span>
+      <span class="row">
+        <button id="cfg-forget" class="ghost" type="button">Lupakan</button>
+        <button id="cfg-save" type="button">Simpan</button>
+      </span>
+    </div>
+  </section>
+
+  <section id="login-card" class="card hidden">
+    <h2>Masuk</h2>
+    <label>Email<input id="login-email" type="email" autocomplete="username" /></label>
+    <label>Password<input id="login-password" type="password" autocomplete="current-password" /></label>
+    <div class="row">
+      <span id="login-status" class="muted"></span>
+      <button id="login-btn" type="button">Masuk</button>
+    </div>
+  </section>
+
+  <section id="dash" class="hidden stack">
+    <div class="card">
+      <div class="row">
+        <div>Device aktif: <b id="device-count">–</b></div>
+        <button id="logout-btn" class="ghost" type="button">Keluar</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Kampanye baru</h2>
+      <label>Judul<input id="c-title" maxlength="80" placeholder="Judul notifikasi" /></label>
+      <label>Pesan<textarea id="c-body" rows="3" maxlength="500" placeholder="Isi notifikasi"></textarea></label>
+      <label>Target<select id="c-target"><option value="all">Semua device aktif</option></select></label>
+      <label>Jenis notifikasi
+        <select id="c-type">
+          <option value="info">Info / pengumuman (buka Setelan)</option>
+          <option value="comic">Komik (buka halaman detail)</option>
+          <option value="chapter">Chapter baru (buka reader)</option>
+          <option value="update">Update aplikasi (buka dialog update)</option>
+        </select>
+      </label>
+      <div id="c-target-fields" class="row" style="display:none; gap:8px">
+        <label style="flex:2">Slug komik<input id="c-slug" maxlength="200" placeholder="mis. black-clover-indonesia" /></label>
+        <label style="flex:1" id="c-chapter-wrap" style="display:none">Chapter<input id="c-chapter" inputmode="decimal" placeholder="mis. 393" /></label>
+      </div>
+
+      <div class="notif">
+        <div class="notif-head"><span class="notif-icon">C</span> Comicly · sekarang</div>
+        <b id="pv-title">Judul notifikasi</b>
+        <p id="pv-body">Isi notifikasi</p>
+      </div>
+
+      <div class="row">
+        <span id="send-status" class="muted"></span>
+        <button id="send-btn" type="button">Kirim</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="row">
+        <h2>Riwayat kampanye</h2>
+        <button id="receipts-btn" class="ghost" type="button">Segarkan status</button>
+      </div>
+      <span id="receipts-status" class="muted"></span>
+      <div id="campaigns" class="muted" style="margin-top:10px">Memuat…</div>
+    </div>
+  </section>
+</main>
+
+<script type="module">
+import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+
+const $ = (id) => document.getElementById(id);
+const URL_KEY = 'comicly.admin.url';
+const ANON_KEY = 'comicly.admin.anon';
+
+let sb = null;
+
+function setStatus(el, text, kind = 'muted') {
+  el.textContent = text;
+  el.className = kind;
+}
+
+function loadConfig() {
+  $('cfg-url').value = localStorage.getItem(URL_KEY) ?? '';
+  $('cfg-anon').value = localStorage.getItem(ANON_KEY) ?? '';
+  return Boolean($('cfg-url').value && $('cfg-anon').value);
+}
+
+function initClient() {
+  const url = $('cfg-url').value.trim().replace(/\/+$/, '');
+  const anon = $('cfg-anon').value.trim();
+  if (!url || !anon) return false;
+  localStorage.setItem(URL_KEY, url);
+  localStorage.setItem(ANON_KEY, anon);
+  sb = createClient(url, anon);
+  return true;
+}
+
+/** Panggil Edge Function; pesan error diambil dari body { error } milik fungsi. */
+async function invokeFn(name, body) {
+  const { data, error } = await sb.functions.invoke(name, body === undefined ? {} : { body });
+  if (error) {
+    let message = error.message ?? 'Gagal memanggil fungsi';
+    try {
+      const detail = await error.context.json();
+      if (detail && typeof detail.error === 'string') message = detail.error;
+    } catch { /* balasan non-JSON — pakai pesan default */ }
+    throw new Error(message);
+  }
+  return data;
+}
+
+async function loadDeviceCount() {
+  const { data, error } = await sb.rpc('admin_device_count');
+  $('device-count').textContent = error ? '?' : String(data ?? 0);
+}
+
+async function loadSegments() {
+  const select = $('c-target');
+  while (select.options.length > 1) select.remove(1);
+  const { data, error } = await sb.from('segments').select('id, name').order('name');
+  if (error || !Array.isArray(data)) return;
+  for (const segment of data) select.add(new Option(`Grup: ${segment.name}`, segment.id));
+}
+
+async function loadCampaigns() {
+  const host = $('campaigns');
+  const { data, error } = await sb
+    .from('push_campaigns')
+    .select('id, title, body, target, sent_count, failed_count, created_at')
+    .order('created_at', { ascending: false })
+    .limit(30);
+  host.textContent = '';
+  if (error) { host.textContent = `Gagal memuat kampanye: ${error.message}`; host.className = 'err'; return; }
+  host.className = 'muted';
+  if (!data || data.length === 0) { host.textContent = 'Belum ada kampanye.'; return; }
+
+  const table = document.createElement('table');
+  const head = document.createElement('tr');
+  for (const label of ['Waktu', 'Judul', 'Target', 'Terkirim', 'Gagal']) {
+    const th = document.createElement('th');
+    th.textContent = label;
+    head.appendChild(th);
+  }
+  table.appendChild(head);
+
+  for (const row of data) {
+    const tr = document.createElement('tr');
+    const cells = [
+      new Date(row.created_at).toLocaleString('id-ID'),
+      row.title,
+      row.target === 'segment' ? 'Grup' : 'Semua',
+      String(row.sent_count),
+      String(row.failed_count),
+    ];
+    for (const value of cells) {
+      const td = document.createElement('td');
+      td.textContent = value;
+      tr.appendChild(td);
+    }
+    table.appendChild(tr);
+  }
+  host.appendChild(table);
+}
+
+async function loadDashboard() {
+  await Promise.all([loadDeviceCount(), loadSegments(), loadCampaigns()]);
+}
+
+async function refreshView() {
+  let email = null;
+  if (sb) {
+    const { data } = await sb.auth.getSession();
+    email = data.session?.user?.email ?? null;
+  }
+  const signedIn = email !== null;
+  $('config-card').classList.toggle('hidden', signedIn);
+  $('login-card').classList.toggle('hidden', signedIn);
+  $('dash').classList.toggle('hidden', !signedIn);
+  $('who').textContent = signedIn ? email : '';
+  if (signedIn) await loadDashboard();
+}
+
+function wireEvents() {
+  $('cfg-save').addEventListener('click', async () => {
+    if (!initClient()) { setStatus($('cfg-status'), 'URL dan anon key wajib diisi.', 'err'); return; }
+    setStatus($('cfg-status'), 'Koneksi disimpan.');
+    await refreshView();
+  });
+
+  $('cfg-forget').addEventListener('click', () => {
+    localStorage.removeItem(URL_KEY);
+    localStorage.removeItem(ANON_KEY);
+    location.reload();
+  });
+
+  $('login-btn').addEventListener('click', async () => {
+    if (!sb) { setStatus($('login-status'), 'Isi koneksi Supabase dulu.', 'err'); return; }
+    const email = $('login-email').value.trim();
+    const password = $('login-password').value;
+    if (!email || !password) { setStatus($('login-status'), 'Email dan password wajib diisi.', 'err'); return; }
+    const button = $('login-btn');
+    button.disabled = true;
+    setStatus($('login-status'), 'Masuk…');
+    const { error } = await sb.auth.signInWithPassword({ email, password });
+    button.disabled = false;
+    if (error) { setStatus($('login-status'), `Gagal masuk: ${error.message}`, 'err'); return; }
+    $('login-password').value = '';
+    setStatus($('login-status'), '');
+    await refreshView();
+  });
+
+  $('logout-btn').addEventListener('click', async () => {
+    if (sb) await sb.auth.signOut();
+    await refreshView();
+  });
+
+  $('send-btn').addEventListener('click', async () => {
+    const title = $('c-title').value.trim();
+    const body = $('c-body').value.trim();
+    if (!title || !body) { setStatus($('send-status'), 'Judul dan pesan wajib diisi.', 'err'); return; }
+    const value = $('c-target').value;
+    const target = value === 'all' ? 'all' : { segment_id: value };
+
+    // Payload menentukan tujuan ketukan notifikasi di aplikasi.
+    const type = $('c-type') ? $('c-type').value : 'info';
+    const slug = ($('c-slug')?.value ?? '').trim();
+    const chapterRaw = ($('c-chapter')?.value ?? '').trim();
+    if ((type === 'comic' || type === 'chapter') && !slug) {
+      setStatus($('send-status'), 'Slug komik wajib diisi untuk jenis ini.', 'err');
+      return;
+    }
+    let data;
+    if (type === 'comic') data = { type, slug };
+    else if (type === 'chapter') {
+      const chapter = chapterRaw ? Number(chapterRaw.replace(',', '.')) : undefined;
+      if (chapterRaw && (!Number.isFinite(chapter) || chapter < 0)) {
+        setStatus($('send-status'), 'Nomor chapter harus angka.', 'err');
+        return;
+      }
+      data = { type, slug, ...(chapter !== undefined ? { chapter } : {}) };
+    } else data = { type };
+
+    const button = $('send-btn');
+    button.disabled = true;
+    setStatus($('send-status'), 'Mengirim…');
+    try {
+      const result = await invokeFn('send-push', { title, body, target, data });
+      setStatus($('send-status'), `Terkirim ${result.sent} · gagal ${result.failed} · total ${result.total}.`, 'ok');
+      await loadDashboard();
+    } catch (e) {
+      setStatus($('send-status'), e.message, 'err');
+    } finally {
+      button.disabled = false;
+    }
+  });
+
+  $('receipts-btn').addEventListener('click', async () => {
+    const button = $('receipts-btn');
+    button.disabled = true;
+    setStatus($('receipts-status'), 'Memeriksa receipt Expo…');
+    try {
+      const result = await invokeFn('push-receipts');
+      setStatus($('receipts-status'), `Diperiksa ${result.checked} tiket · ${result.errors} gagal.`, 'ok');
+      await loadDashboard();
+    } catch (e) {
+      setStatus($('receipts-status'), e.message, 'err');
+    } finally {
+      button.disabled = false;
+    }
+  });
+
+  const updatePreview = () => {
+    $('pv-title').textContent = $('c-title').value.trim() || 'Judul notifikasi';
+    $('pv-body').textContent = $('c-body').value.trim() || 'Isi notifikasi';
+  };
+  $('c-title').addEventListener('input', updatePreview);
+  $('c-body').addEventListener('input', updatePreview);
+
+  // Tampilkan field slug/chapter sesuai jenis notifikasi yang dipilih.
+  function syncTypeFields() {
+    const type = $('c-type') ? $('c-type').value : 'info';
+    const fields = $('c-target-fields');
+    if (fields) fields.style.display = type === 'comic' || type === 'chapter' ? 'flex' : 'none';
+    const chapterWrap = $('c-chapter-wrap');
+    if (chapterWrap) chapterWrap.style.display = type === 'chapter' ? 'block' : 'none';
+  }
+  if ($('c-type')) {
+    $('c-type').addEventListener('change', syncTypeFields);
+    syncTypeFields();
+  }
+}
+
+loadConfig();
+initClient();
+wireEvents();
+await refreshView();
+</script>
+</body>
+</html>
